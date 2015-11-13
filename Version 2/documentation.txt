@@ -1,0 +1,23 @@
+---------Documentation----------
+
+Files:
+index.html: Main Html page
+drawing.js: Contains all the methods that deal with drawing on the canvas
+inputHandler.js 
+cutoutObjectStorage.js
+objectManipulation.js
+gcodeGeneration.js
+userInterface.js
+style.css
+
+
+drawing.js:
+
+
+
+
+inputHandler.js:
+	onclick() {
+		asdad
+	
+	}

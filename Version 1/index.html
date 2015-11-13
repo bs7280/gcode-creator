@@ -1,0 +1,759 @@
+<html>
+	<head>
+		<script src="plateFunctions.js"></script>
+	
+		<title>2D web based G-code generator</title>
+	</head>
+	<body>
+		<div id = "col">
+			I need to be able to add polygons, change priority between mouse position of clicking for changing a point and moving the polygon<br />
+			also, I need to be able to type in the position of a new point or a point to be moved. Also, rotation.
+			<div id = "left">
+				<canvas id="myCanvas" width="1080" height = "608" style="border:1px solid #000000;">
+		
+				</canvas>
+			</div>
+			<div id = "right">
+			
+			</div>
+				<input type="button" id="addPoints" onClick = "setAddPolygonMode()" value="add polygon">
+				<input type="button" id="movePolygon" onClick = "setMovePolygonMode()" value="move polygon">
+				<input type="button" id="deletePolygon" onClick = "setDeletePolygonMode()" value="delete polygon">
+				<br /><textarea id="gcodeOutput" COLS = "100" ROWS = "25">GCODE GOES HERE</textarea><br />
+				
+				<div id = "pointEditing">
+					
+				</div>
+		</div>
+		<script>
+			var canvas=document.getElementById("myCanvas");
+			var ctx=canvas.getContext("2d");
+			
+			
+			
+			var HEIGHT = canvas.height;
+			var WIDTH = 800;
+			
+			var millimetersToPixels = 32.0; //used for determining the spacing on
+			//the background grid and measurements in general. IMPORTANT:
+			//This is ACTUALLY millimeters but I have not changed it yet.
+			//this is because the gcode works will millimeters.
+			
+			//The offset, in millimeters for the top left corner for where the 
+			//plate is drawn. This is important because otherwise the cnc coordinates
+			//will be off.
+			var plateHorizontalOffset = 6 * millimetersToPixels;
+			var plateVerticalOffset = 6 * millimetersToPixels;
+			var plateWidth = 10 * millimetersToPixels;
+			var plateHeight = 8 * millimetersToPixels;
+			
+			var lastMouseX = 0;
+			var lastMouseY = 0;
+			
+			//Variable that stores all the coordinate points for shapes to be cut out
+			var shapes = new Array();
+			shapes[0] = new Array(); //creating a new shape/cutout section
+			shapes[0][0] = new Array(3);
+			shapes[0][0][0] = 32*7;
+			shapes[0][0][1] = 32*7;
+			shapes[0][0][2] = false;
+			shapes[0][1] = new Array(3);
+			shapes[0][1][0] = 32*9;
+			shapes[0][1][1] = 32*7;
+			shapes[0][0][2] = false;
+			/*shapes[0][2] = new Array(3);
+			shapes[0][2][0] = 32*9;
+			shapes[0][2][1] = 32*9;
+			shapes[0][0][2] = false;*/
+			
+			shapes[1] = new Array();
+			shapes[1][0] = new Array(3);
+			shapes[1][0][0] = 32*10;
+			shapes[1][0][1] = 32*10;
+			shapes[0][0][2] = false;
+			shapes[1][1] = new Array(3);
+			shapes[1][1][0] = 32*14;
+			shapes[1][1][1] = 32*12;
+			shapes[0][0][2] = false;
+			shapes[1][2] = new Array(3);
+			shapes[1][2][0] = 32*15;
+			shapes[1][2][1] = 32*11;
+			shapes[0][0][2] = false;
+			
+			//this is for highlighting the moused over point
+			var lastSelectedPoint_polygon = 0; //this is for changing color on moused over points (polygon id)
+			var lastSelectedPoint_point = 0; //this is for changing color on moused over points (point id)
+			
+			//the polygon and point id number for 
+			var lineSplitPointX = -1; //default to -1 if there is no point
+			var lineSplitPointY = -1; //if not -1 for both, then a dot will be drawn at that point
+			
+			//Variables for the center point
+			var centerPointX = -1;
+			var centerPointY = -1;
+			
+			//variables for dragging a point on a polygon
+			var draggingPoint = false;
+			var dragedPointPolygonId = 0;
+			var dragedPointPointId = 0;
+			
+			//Variables for dragging the entire polygon
+			var draggingPolygon = false;
+			var dragedPolygonId = 0;
+			var dragStartX = 0;
+			var dragStartY = 0;
+			var dragOffsetX = 0;
+			var dragOffsetY = 0;
+								//The x and y position of where the dragging was initially started. While dragging is going on
+								//the points and lines will be drawn according to an offset, and once the dragging has stopped
+								//the changes will be saved to the shapes[][] array.
+								
+			//for adding points 
+			var addingPointsMode = false; //changes the value of the button, etc...
+			var pointsToAdd = new Array();
+			
+			//for moving the polygons (toggling the mode on and off)
+			var movingPolygonsMode = false;
+			
+			//For deleting polygons
+			var deletingPolygonsMode = false;
+			
+			function pixelsToInches(pixels) {return pixels/millimetersToPixels;} //note, this might only return integers, instead of a float
+			function inchestoPixels(pixels) {return pixels*millimetersToPixels;} //note, this might only return integers, instead of a float
+			
+			function clear()
+			{
+				//clears everything
+				canvas.width = canvas.width;
+			}
+			
+			function onclick(e)
+			{	
+				var xpos = e.pageX - canvas.offsetLeft;
+				var ypos = e.pageY - canvas.offsetTop;
+				
+				if(addingPointsMode == true) {
+					pointsToAdd[pointsToAdd.length] = new Array();
+					pointsToAdd[pointsToAdd.length - 1][0] = xpos;
+					pointsToAdd[pointsToAdd.length - 1][1] = ypos;
+					pointsToAdd[pointsToAdd.length - 1][2] = false;
+				}
+				else if(deletingPolygonsMode == true) {
+					var onCenterResults = isOnCenter(xpos, ypos);
+					if(onCenterResults[0] != -1) {
+						//delete the polygon
+						var pointID = onCenterResults[3];
+						var before = shapes.slice(0,pointID);
+						var after = shapes.slice(pointID + 1, shapes.length);
+						
+						var newShapes = before.concat(after);
+						
+						console.log(makeString(newShapes));
+						console.log(makeString(before));
+						console.log(makeString(after));
+						
+						shapes = newShapes;
+					}
+				} else {
+					//Checking if you have clicked on a lineSplitPoint
+					var lineSplitResult = isLineSplit(xpos, ypos);
+					if(lineSplitResult[0] != -1) {
+						//clicked on point
+						var polygonID = lineSplitResult[4];
+						var pointID = lineSplitResult[3]; //the mid point is bewteen this and the next point
+														  //next might be a smaller number though.
+						
+						//creating a new coordinate point
+						var newCoordinate = new Array();
+						newCoordinate[0] = lineSplitResult[0];
+						newCoordinate[1] = lineSplitResult[1];
+						newCoordinate[2] = false;
+						
+						var before = shapes[polygonID].slice(0,pointID + 1);
+						var after = shapes[polygonID].slice(pointID + 1, shapes[polygonID].length);
+						
+						var newPolygon = before.concat([newCoordinate]).concat(after);
+						
+						shapes[polygonID] = newPolygon;
+					}
+				}
+			}
+			
+			function onmousedown(e) {
+				//isPointCoordinate(,);
+				var xpos = e.pageX - canvas.offsetLeft;
+				var ypos = e.pageY - canvas.offsetTop;
+				
+				var result = isPointCoordinate(xpos, ypos);
+				var onCenterResult = isOnCenter(xpos, ypos);
+				
+				if(movingPolygonsMode == true && onCenterResult[0] != -1) {
+					//Dragging the center of a polygon
+					draggingPolygon = true; //Specifing that a polygon is being dragged
+					dragedPolygonId = onCenterResult[3]; //setting the polygon id that is being dragged
+					dragStartX = xpos; //setting the dragging origin to the current mouse position
+					dragStartY = ypos; //for both x and y
+					dragOffsetX = 0;
+					dragOffsetY = 0;
+				}
+				else if(result[0] != -1) {
+					//dragging a point
+					draggingPoint = true;
+					dragedPointPolygonId = result[0];
+					dragedPointPointId = result[1];
+				}
+			}
+			
+			function onmouseup(e) {
+				if(draggingPolygon == true) {
+					//Updating all the points in the moved polygon
+					for(i = 0; i < shapes[dragedPolygonId].length; i++) {
+						shapes[dragedPolygonId][i][0] += dragOffsetX;
+						shapes[dragedPolygonId][i][1] += dragOffsetY;
+					}
+					
+					//reseting the offsets to 0
+					dragOffsetX = 0;
+					dragOffsetY = 0;
+					draggingPolygon = false;
+				}
+			
+				draggingPoint = false;
+				draggingPolygon = false;
+			}
+			
+			function onmousemove(e) {
+				var mouseX, mouseY;
+
+				//Getting the X and Y mouse position and accointing for any offsets
+				//from the position of the canvas. X and Y positions are based off of
+				//the top left corner of the canvas being (0,0)
+				if(e.offsetX) {
+					mouseX = e.offsetX;
+					mouseY = e.offsetY;
+				}
+				else if(e.layerX) {
+					mouseX = e.layerX;
+					mouseY = e.layerY;
+				}
+
+				/* do something with mouseX/mouseY */
+				lastMouseX = mouseX;
+				lastMouseY = mouseY
+				if(addingPointsMode == true) {
+					//
+				} else {
+					if (draggingPolygon == true) {
+						//Dragging an entire shape around
+						dragOffsetX = mouseX - dragStartX; //changing the xOffset, so that the polygon can be drawn accordingly while it is moving
+						dragOffsetY = mouseY - dragStartY; //same as above except in the y direction
+					}
+					else if(draggingPoint == true) {
+						//Dragging a point around
+						shapes[dragedPointPolygonId][dragedPointPointId][0] = mouseX;
+						shapes[dragedPointPolygonId][dragedPointPointId][1] = mouseY;
+					} else {
+						var isOnCenterResults = isOnCenter(mouseX, mouseY);
+						var clickResults = isPointCoordinate(mouseX, mouseY);
+						var splitLineResults = isLineSplit(mouseX, mouseY);
+						if(clickResults[0] != -1 && splitLineResults[0] != -1 && isOnCenterResults[0] != -1) {
+							if(splitLineResults[2] < clickResults[2] && splitLineResults[2] < isOnCenterResults[2]) {
+								//the line split point is closer to the 
+								lineSplitPointX = splitLineResults[0];
+								lineSplitPointY = splitLineResults[1];
+							}
+							else if(isOnCenterResults[2] < clickResults[2] && isOnCenterResults[2] < splitLineResults[2]) {
+								alert("center");
+							}
+							else {
+								//the drill bit path point is closer, or they are equal distance apart
+								shapes[lastSelectedPoint_polygon][lastSelectedPoint_point][2] = false;
+								shapes[clickResults[0]][clickResults[1]][2] = true;
+								lastSelectedPoint_polygon = clickResults[0];
+								lastSelectedPoint_point = clickResults[1];
+							}
+						
+						} else {
+							if(clickResults[0] != -1) {
+								//the drill bit path point is closer, or they are equal distance apart
+								shapes[lastSelectedPoint_polygon][lastSelectedPoint_point][2] = false;
+								shapes[clickResults[0]][clickResults[1]][2] = true;
+								lastSelectedPoint_polygon = clickResults[0];
+								lastSelectedPoint_point = clickResults[1];
+							}
+							else if(splitLineResults[0] != -1) {
+								//the line split point is closer to the 
+								lineSplitPointX = splitLineResults[0];
+								lineSplitPointY = splitLineResults[1];
+							}
+							else if(movingPolygonsMode == true && isOnCenterResults[0] != -1) {
+								centerPointX = isOnCenterResults[0];
+								centerPointY = isOnCenterResults[1];
+							}
+						}
+						
+						if(clickResults[0] == -1) {
+							if(lastSelectedPoint_polygon < shapes.length) {
+								shapes[lastSelectedPoint_polygon][lastSelectedPoint_point][2] = false;
+							}
+						}
+						if(splitLineResults[0] == -1) {
+							//the line split point is closer to the 
+							lineSplitPointX = -1;
+							lineSplitPointY = -1;
+						}
+						if(isOnCenterResults[0] == -1) {
+							centerPointX = -1;
+							centerPointY = -1;
+						}
+					}
+				}
+			}
+			
+			function keydown(e) {
+				alert(e.keyCode);
+			}
+						
+			function isPointCoordinate(x,y) {
+				var closestDistance = 5.1;
+				var closestShapeId = 0;
+				var closestPointId = 0;
+				for(var s = 0; s < shapes.length; s++) {
+					for(var i = 0; i < shapes[s].length; i++) {
+						var xdist = Math.abs(x - shapes[s][i][0]);
+						var ydist = Math.abs(y - shapes[s][i][1]);
+						if(xdist <=2.5 && ydist <=2.5) {
+							if(xdist+ydist < closestDistance) {
+								closestShapeId = s;
+								closestPointId = i;
+								closestDistance = xdist + ydist;
+							}
+						}
+					}
+				}
+				
+				//returning the closest one, if one was found
+				if(closestDistance < 5.1) {
+					return [closestShapeId, closestPointId, closestDistance];
+				} else {
+					return [-1, -1];
+				}
+			}
+			
+			function isLineSplit(x,y) {
+				var closestDistance = 50;
+				var closestPointX = 0;
+				var closestPointY = 0;
+				var closestPolygon = 0;
+				var closestPoint = 0;
+				
+				//variables for determining wheather or not to show the midpoint (to close to points)
+				var minDistanceToPoint = 5; //if both the x and y distance from the nearest point
+											 //to the midpoint are less than this, then point not shown.
+				
+				for(var s = 0; s < shapes.length; s++) {
+					for(var i = 0; i < shapes[s].length; i++) {
+						var xPoint = (shapes[s][(i+1)%shapes[s].length][0] + shapes[s][i][0])/2.0;
+						var yPoint = (shapes[s][(i+1)%shapes[s].length][1] + shapes[s][i][1])/2.0;
+					
+						var xdist = Math.abs(x - xPoint);
+						var ydist = Math.abs(y - yPoint);
+						
+						//checks if the midpoint is too close to a current point
+						if(Math.abs(shapes[s][i][0] - xPoint) > minDistanceToPoint || Math.abs(shapes[s][i][1] - yPoint) > minDistanceToPoint) {
+						
+							if(xdist <=20 && ydist <=20) {
+								if(xdist+ydist < closestDistance) {
+									closestPointX = xPoint;
+									closestPointY = yPoint;
+									closestPolygon = s;
+									closestPoint = i;
+									closestDistance = xdist + ydist;
+								}
+							}
+						}
+					}
+				}
+				
+				//returning the closest one, if one was found
+				if(closestDistance < 15) {
+					return [closestPointX, closestPointY, closestDistance, closestPoint, closestPolygon];
+				} else {
+					return [-1, -1];
+				}
+			}
+			
+			function isOnCenter(x,y) {
+				var closestX = 0;
+				var closestY = 0;
+				var closestDistance = 40;
+				var closestPolygon = 0;
+				for(var s = 0; s < shapes.length; s++) { //looping through all polygons
+					//calculating the midpoint
+					var xMidpoint = 0;
+					var yMidpoint = 0;
+					
+					for(var i = 0; i < shapes[s].length; i++) {
+						xMidpoint += shapes[s][i][0];
+						yMidpoint += shapes[s][i][1];
+					}
+					
+					xMidpoint = xMidpoint/shapes[s].length;
+					yMidpoint = yMidpoint/shapes[s].length;
+					
+					var xdist = Math.abs(x - xMidpoint);
+					var ydist = Math.abs(y - yMidpoint);
+						
+					if(xdist <=10 && ydist <=10) {
+						if(xdist+ydist < closestDistance) {
+							closestX = xMidpoint;
+							closestY = yMidpoint;
+							closestPolygon = s;
+							closestDistance = xdist + ydist;
+						}
+					}
+				}
+				
+				makeGcode();
+				makePointEditingBoxes();
+				
+				//returning the closest one, if one was found
+				if(closestDistance < 40) {
+					return [closestX, closestY, closestDistance, closestPolygon];
+				} else {
+					return [-1, -1];
+				}
+				
+				
+			}
+			
+			
+			function setAddPolygonMode() {
+				if(addingPointsMode == true) {
+					if(pointsToAdd.length > 0) {
+						shapes[shapes.length] = pointsToAdd;
+					}
+					pointsToAdd = new Array();
+					
+					document.getElementById("addPoints").value="add new polygon";
+					
+					addingPointsMode = false;
+					if(movingPolygonsMode == true) {
+						setMovePolygonMode();
+					}
+					if(deletingPolygonsMode == true) {
+						setDeletePolygonMode();
+					}
+				} else {
+					if(movingPolygonsMode == true) {
+						setMovePolygonMode();
+					}
+					if(deletingPolygonsMode == true) {
+						setDeletePolygonMode();
+					}
+					document.getElementById("addPoints").value="stop adding polygons";
+					addingPointsMode = true;
+				}
+			}
+			
+			function setMovePolygonMode() {
+				if(movingPolygonsMode == true) {
+					document.getElementById("movePolygon").value="move polygon";
+					
+					movingPolygonsMode = false;
+					if(deletingPolygonsMode == true) {
+						setDeletePolygonMode();
+					}
+					if(addingPointsMode == true) {
+						setAddPolygonMode();
+					}
+				} else {
+					if(deletingPolygonsMode == true) {
+						setDeletePolygonMode();
+					}
+					if(addingPointsMode == true) {
+						setAddPolygonMode();
+					}
+					document.getElementById("movePolygon").value="stop moving polygons";
+					movingPolygonsMode = true;
+				}
+			}
+			
+			function setDeletePolygonMode() {
+				if(deletingPolygonsMode == true) {
+					document.getElementById("deletePolygon").value="delete polygon";
+					
+					deletingPolygonsMode = false;
+					
+					//reseting the other buttons
+					if(movingPolygonsMode == true) {
+						setMovePolygonMode();
+					}
+					if(addingPointsMode == true) {
+						setAddPolygonMode();
+					}
+				} else {
+					//reseting the other buttons
+					if(movingPolygonsMode == true) {
+						setMovePolygonMode();
+					}
+					if(addingPointsMode == true) {
+						setAddPolygonMode();
+					}
+					
+					document.getElementById("deletePolygon").value="stop deleteing polygons";
+					deletingPolygonsMode = true;
+				}
+			}
+			
+			function makeGcode() {
+				//variable that contains all the outputted gcode.
+				var gcode_string = "";
+				
+				//Initialization code generation. For now, it will always be the same.
+				var gcode_initialization = "";
+				
+				//content that gets added to the end of a gcode program
+				var gcode_finish = "M30";
+				
+				//information containing the depth of the plate and ammount to cut out per layer.
+				var depthOfCut = 0.3; //depth of the plate in MILLIMETERS
+				var depthPerLayer = 0.03; //depth, in MILLIMETERS
+				var clockwise = true; //if true, then the cut is clockwise (otherwise counterclockwise)
+				
+				//Modifying Scale
+				var scaleModifier = millimetersToPixels; //used to decrease the dimensions of the design, for the sake of
+				//temporarily making realistically sized model to cut out when testing.
+				
+				//Looping through all the shapes/polygons and getting the gcode for each
+				for(var s = 0; s < shapes.length; s++) {
+					gcode_string += "Polygon : " + (s + 1) + "\n";
+					var lastDepth = 0;
+					for(var d = 0; d < depthOfCut; d+=depthPerLayer) {
+						for(var i = 0; i < shapes[s].length; i++) {
+							var depthChange = Math.ceil((depthPerLayer/(shapes[s].length)) * 100)/100;
+							gcode_string += "G1 x" + (shapes[s][i][0]/30.0 - plateHorizontalOffset/scaleModifier) + " y" + (shapes[s][i][1]/scaleModifier - plateVerticalOffset/scaleModifier) + " z-" + (lastDepth + depthChange) + "\n";
+							lastDepth += depthChange;
+						}
+					}
+					gcode_string += "\n";
+					
+					gcode_string += "G1 x" + (shapes[s][shapes[s].length - 1][0]/scaleModifier - plateHorizontalOffset/scaleModifier) + " y" + (shapes[s][shapes[s].length - 1][1]/scaleModifier - plateVerticalOffset/scaleModifier) + " z1\n";
+					if (s < shapes.length - 1) {
+						gcode_string += "G1 x" + (shapes[s + 1][0][0]/scaleModifier - plateHorizontalOffset/scaleModifier) + " y" + (shapes[s + 1][0][1]/scaleModifier - plateVerticalOffset/scaleModifier) + " z1\n";
+					}
+					
+					gcode_string += "\n";
+				}
+				
+				//Putting gcode string into the textbox
+				document.getElementById('gcodeOutput').value = gcode_string;
+			}
+			
+			function makePointEditingBoxes() {
+				var formContents = "";
+			
+				for(var s = 0; s < shapes.length; s++) {
+					formContents = formContents + "<br />Polygon Number: " + (s + 1) + ":<br />";
+					for(var i = 0; i < shapes[s].length; i++) {
+						formContents += "point " +(i + 1)+ ": X:<input type='text' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "X' >   Y:<input type='text' value ='" +shapes[s][i][1]+ "' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "Y'><br/>";
+					}
+				}
+				
+				formContents += "<input type='button' value='update points' onclick='test()'>";
+			
+				document.getElementById('pointEditing').innerHTML = formContents;
+			}
+			
+			function test() {
+				for(var s = 0; s < shapes.length; s++) {
+					for(var i = 0; i < shapes.length; i++) {
+						shapes[s][i][0] = document.getElementById("Shape" + s + "Point" +i+ "X").value;
+						shapes[s][i][1] = document.getElementById("Shape" + s + "Point" +i+ "Y").value;
+					}
+				}
+			}
+			
+			function drawGrid() {
+				//var verticalIntervals = HEIGHT/millimetersToPixels;
+				//var horizontalIntervals = WIDTH/millimetersToPixels;
+				
+				ctx.strokeStyle= "#555555";
+				ctx.lineWidth = 0.5;
+				for(var i = millimetersToPixels; i < HEIGHT; i+= millimetersToPixels)
+				{   //horizontal lines
+					ctx.moveTo(0,i);
+					ctx.lineTo(WIDTH,i);
+				}
+				
+				for(var n = 0; n < WIDTH; n+= millimetersToPixels)
+				{   //vertical lines
+					ctx.moveTo(n,0);
+					ctx.lineTo(n,HEIGHT);
+				}
+				ctx.stroke();
+			}
+			
+			function drawMouseCoordinate() {
+				ctx.font="12px Sans-Serif";
+				ctx.textBaseline = "top";
+				ctx.fillStyle = "black";
+				ctx.fillText("(" + pixelsToInches(lastMouseX) + ", " + pixelsToInches(lastMouseY) + ")",680,580);
+			}
+			
+			function drawPlate() {
+				ctx.fillStyle="#999999";
+				ctx.fillRect(plateHorizontalOffset, plateVerticalOffset, plateWidth, plateHeight);
+			}
+			
+			function drawAllPoints() {
+			
+			/*for(var polygon = 0; polygon < shapes.length; polygon++) {
+				for(var point = 0; point < shapes[polygon].length; point++) {
+					ctx.fillStyle="red";
+					ctx.fillRect(shapes[polygon][point][0], shapes[polygon][point][1], 5, 5);
+				}
+			}*/
+			
+				//Looping through all the shapes
+				for(var s = 0; s < shapes.length; s++) {
+					//Drawing all the coordinate points
+					for(var i = 0; i < shapes[s].length; i++) {
+						ctx.beginPath();
+						if(shapes[s][i][2] == true) {ctx.fillStyle="blue"; ctx.strokeStyle= "#blue";} else {ctx.fillStyle="red"; ctx.strokeStyle= "#red";}
+						if(draggingPolygon == true && dragedPolygonId == s) { //this polygon is being dragged
+							//drawing the given point in shapes[s][i] taking into account
+							//the dragOffset because this polygon is being actively moved.
+							ctx.arc(shapes[s][i][0] + dragOffsetX,shapes[s][i][1] + dragOffsetY,2.5,0,2*Math.PI);
+						} else { //this polygon not being dragged
+							//drawing the given point in shapes[s][i] without taking into the account
+							//of an offset because this polygon is not being dragged.
+							ctx.arc(shapes[s][i][0],shapes[s][i][1],2.5,0,2*Math.PI);
+						}
+						
+						//Drawing the dots
+						ctx.fill();
+						ctx.stroke();
+					}
+					
+					ctx.beginPath();
+					if(draggingPolygon == true && dragedPolygonId == s) { //This polygon is being dragged
+						//offsetting all the points because this polygon is being dragged.
+						ctx.moveTo(shapes[s][0][0] + dragOffsetX,shapes[s][0][1] + dragOffsetY);
+						for(var i = 1; i < shapes[s].length; i++) {
+							ctx.lineTo(shapes[s][i][0] + dragOffsetX,shapes[s][i][1] + dragOffsetY);
+						}
+						ctx.lineTo(shapes[s][0][0] + dragOffsetX, shapes[s][0][1] + dragOffsetY);
+					} else {
+						ctx.moveTo(shapes[s][0][0],shapes[s][0][1]);
+						for(var i = 1; i < shapes[s].length; i++) {
+							ctx.lineTo(shapes[s][i][0],shapes[s][i][1]);
+						}
+						ctx.lineTo(shapes[s][0][0], shapes[s][0][1]);
+					}
+					ctx.stroke();
+				}
+				
+				//Drawing the hovered over split line point
+				if(lineSplitPointX != -1 && lineSplitPointY != -1) {
+					ctx.beginPath();
+					ctx.fillStyle="blue"; ctx.strokeStyle= "#blue";
+					ctx.arc(lineSplitPointX,lineSplitPointY,3.5,0,2*Math.PI);
+					ctx.fill();
+					ctx.stroke();
+				}
+				
+				//Drawing the hovered over center point
+				if(centerPointX != -1 && centerPointY != -1) {
+					ctx.beginPath();
+					ctx.fillStyle="blue"; ctx.strokeStyle= "#blue";
+					if(draggingPolygon == true) {
+						ctx.arc(centerPointX + dragOffsetX,centerPointY + dragOffsetY,3.5,0,2*Math.PI);
+					} else {
+						ctx.arc(centerPointX,centerPointY,3.5,0,2*Math.PI);
+					}
+					ctx.fill();
+					ctx.stroke();
+				}
+				
+				if(addingPointsMode == true) {
+					//Drawing the hovered over center point
+					ctx.beginPath();
+					ctx.fillStyle="blue"; ctx.strokeStyle= "blue";
+					ctx.arc(lastMouseX,lastMouseY,3.5,0,2*Math.PI);
+					ctx.fill();
+					ctx.stroke();
+				}
+			}
+			
+			function drawUI() {
+				//Drawing the boxes for each shape on the side bar
+				for(var s = 0; s < shapes.length; s++) {
+					ctx.fillStyle = "red";
+					ctx.fillRect(WIDTH, 50*s, 280, 40);
+				}
+				
+				//Drawing the Black bar between the grid and side bar
+				ctx.beginPath();
+				ctx.moveTo(WIDTH,0);
+				ctx.lineTo(WIDTH,HEIGHT);
+				ctx.strokeStyle = "black";
+				ctx.lineWidth = 5;
+				ctx.stroke();
+			}
+			
+			//converts a polygon's array of points into a formated array
+			function makeString(polygon) {
+				var returnString = "[";
+				for(var i = 0; i < polygon.length; i++) {
+					returnString += "[";
+					for(var n = 0; n < polygon[i].length; n++) {
+						if(n > 0) {
+							returnString += ", ";
+						}
+						returnString += polygon[i][n];
+					}
+					returnString += "],";
+				}
+				returnString += "]";
+				
+				return returnString;
+			}
+			
+			function draw() {
+				//Clearing the screen first
+				clear()
+				
+				//drawing the background grid
+				drawGrid();
+				
+				drawPlate();
+				
+				drawMouseCoordinate();
+				
+				drawAllPoints();
+				
+				drawUI();
+				
+				//ctx.fillStyle="#888888";
+				//ctx.fillRect(100,100,50,200);
+			}
+			
+			function init()
+			{
+				canvas.focus();
+				canvas.addEventListener("mousemove", onmousemove);
+				canvas.addEventListener("mouseup", onmouseup);
+				canvas.addEventListener("mousedown", onmousedown);
+				canvas.addEventListener("click", onclick, false);
+				//canvas.addEventListener("keydown", function(event) {alert("asdas");}, false);
+			
+				//calls the draw function after every so many milliseconds
+				return setInterval(draw, 10);
+			}
+	
+			//starting everything
+			init();
+		</script>
+	</body>
+</html>

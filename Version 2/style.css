@@ -1,0 +1,74 @@
+body {
+	margin: 0;
+	padding: 0;
+	background-color: #555;
+}
+
+div#col {
+	width: 1100px;
+	margin-left: auto;
+	margin-right: auto;
+	background-color: #FFF;
+	padding-left:10px; 
+	padding-right: 10px;
+}
+
+div#left {
+	float: left;
+}
+
+div#canvas_holder {
+	float: left;
+}
+
+canvas#mycanvas {
+	border:1px solid #000000;
+}
+
+div#right {
+	float: right;
+}
+
+div#main {
+	z-index: 1;
+}
+
+/*hides the side bar items by default*/
+div#nav ul li ul{
+	display: none;
+}
+
+/* Header, contaings toolbar and other stuff */ 
+div#header {
+	width: 1100px;
+	height: 120px;
+}
+
+/* for the header content */
+div#topbarContent {
+	width: 100%;
+	height: 80px;
+}
+
+/* for the toolbar */
+div#toolbar { 
+	width: 100%;
+	height: 40px;
+	margin-bottom: 0;
+}
+
+/* Below Div is for the containing box that hovers over the page. */
+div#hoverOver {
+	position: absolute; /* important */
+	z-index: 10; /* the higher the z index, the higher priority it has on the page */
+	/*background-color: red;*/
+	width: 400px;
+	height: 300px;
+	left: 50%; /* This must be 50% to center it vertically */
+	top: 50%; /* This must be 50% to center it vertically */
+	margin-left: -200px; /* must be half the width, allows the left:50%; to properly center the div horizontally */
+	margin-top: -150px; /* same as above except with vertically, and with height. */
+	position: fixed; /* allows the div to be centered regardless of if the user scrolls the page */
+	background-color: red;
+	/*visibility: hidden;*/
+}

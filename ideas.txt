@@ -1,0 +1,28 @@
+todo:
+make a bar on the right that will contain polygon sets
+make ability to add points to polygons
+make deafault polygons like right triangles and stuff
+move around points
+curves
+
+Idea: lock points in place.
+also, maybe I should make it so that the points are squares, that way it
+is way faster to calculate if the mouse clicked on a point
+
+make it so mid points will not form when the segment is smaller than a certain size.
+also, when two points are dragged onto each other, the dragged point should be removed.
+I also need a way to make drilling patterns that do not follow a polygon.
+Also, a backward gcode editor. Enter gcode, then edit it. but that would be pretty hard.
+
+move the entire shape (find midpoint the same way you find Center of gravity)
+
+have button/keyboard command/or something that lets the user add a new shape, then 
+click 3 points, and the shape is created.
+
+on the gui, there should be a button to copy polygons and on each polygon, a button to flip
+horizontally/vertically. then somewhere there will ne buttons to create a perfect right triangle
+or perfect whatever shape automatically, with options to type in a new value for a point.
+or at least maybe an option to manually change all points.
+
+Note: polygons can actually be just one point (a hole) or
+two points (a line)

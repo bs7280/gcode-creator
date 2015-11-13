@@ -1,0 +1,199 @@
+<html>
+	<head>
+		<script src="cutoutObjectStorage.js" type="text/javascript"></script>
+		<script src="inputHandler.js" type="text/javascript"></script>
+		<script src="drawing.js" type="text/javascript"></script>
+		<script src="objectManipulation.js" type="text/javascript"></script>
+		<script src="gcodeGeneration.js" type="text/javascript"></script>
+		<script src="jquery.js" type="text/javascript"></script>
+		
+		<link rel="stylesheet" type="text/css" href="style.css">
+	
+		<title>2D web based G-code generator</title>
+	</head>
+	<body>
+		<div id = "main">
+			<div id = "col">
+				<div id = "header">
+					<div id = "topbarContent">
+						I need to be able to add polygons, change priority between mouse position of clicking for changing a point and moving the polygon<br />
+						also, I need to be able to type in the position of a new point or a point to be moved. Also, rotation.
+					</div>
+					<div id = "toolbar">
+						<div id = "divButtons">
+							<input type="button" id="addPoints" onClick = "setAddPolygonMode()" value="add polygon">
+							<input type="button" id="movePolygon" onClick = "setMovePolygonMode()" value="move polygon">
+							<input type="button" id="deletePolygon" onClick = "setDeletePolygonMode()" value="delete polygon">
+							<input type="button" id="createArc" onClick = "setCreateArcMode()" value="create arc">
+						</div>
+					</div>
+				</div>
+				<div id = "left" style="">
+					<div id="canvas_holder" style="">
+						<canvas id="myCanvas" width="800" height = "608" style="">
+				
+						</canvas>
+					</div>
+				</div>
+				<div id = "right" style="">
+					<div id="nav">
+						<ul>
+							<li>	
+								<div id="dropdownLabel" style="background-color: red;">Polygon 1</div>
+								<ul>
+									<li> Point Set 1 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+									<li> Point Set 2 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+									<li> Point Set 3 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+								</ul>
+							</li>
+							
+							<li>
+								<div id="dropdownLabel">Polygon 2</div>
+								<ul>
+									<li> Point Set 1 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+									<li> Point Set 2 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+									<li> Point Set 3 <ul><li>x coordinate</li><li>y coordinate</li></ul></li>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</div>
+					<br /><textarea id="gcodeOutput" COLS = "95" ROWS = "25">GCODE GOES HERE</textarea><br />
+					
+					<div id = "pointEditing">
+						
+				</div>
+			</div>
+			
+			<!-- Below contains divs that hover over the page -->
+			
+			<div id="hoverOver__">
+			
+			</div>
+		</div>
+		<script>
+			var canvas=document.getElementById("myCanvas");
+			var ctx=canvas.getContext("2d");
+			
+			
+			
+			
+			var HEIGHT = canvas.height;
+			var WIDTH = 800;
+			
+			var millimetersToPixels = 32.0; //used for determining the spacing on
+			//the background grid and measurements in general.
+			
+			//The offset, in millimeters for the top left corner for where the 
+			//plate is drawn. This is important because otherwise the cnc coordinates
+			//will be off.
+			var plateHorizontalOffset = 6 * millimetersToPixels;
+			var plateVerticalOffset = 6 * millimetersToPixels;
+			var plateWidth = 10 * millimetersToPixels;
+			var plateHeight = 8 * millimetersToPixels;
+			
+
+			
+			function pixelsToInches(pixels) {return pixels/millimetersToPixels;} //note, this might only return integers, instead of a float
+			function inchestoPixels(pixels) {return pixels*millimetersToPixels;} //note, this might only return integers, instead of a float
+			
+			
+			
+			
+			
+			
+			
+			function makePointEditingBoxes() {
+				var formContents = "";
+			
+				formContents = formContents + "This will be  a tree menu!<ul>"
+				for(var s = 0; s < shapes.length; s++) {
+					formContents = formContents + "<li>Polygon Number: " + (s + 1) + "<ul>";
+					for(var i = 0; i < shapes[s].length; i++) {
+						formContents += "<li>point " +(i + 1)+ "<ul><li>X:<input type='text' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "X' ></li>Y:<input type='text' value ='" +shapes[s][i][1]+ "' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "Y'></li></ul></li>";
+					}
+					formContents = formContents + "</ul></li>";
+				}
+				
+				formContents += "</ul>";
+				
+				formContents += "<input type='button' value='update points' onclick='test()'>";
+			
+				document.getElementById('nav').innerHTML = formContents;
+			}
+			
+			/*function makePointEditingBoxes() {
+				var formContents = "";
+			
+				for(var s = 0; s < shapes.length; s++) {
+					formContents = formContents + "<br />Polygon Number: " + (s + 1) + ":<br />";
+					for(var i = 0; i < shapes[s].length; i++) {
+						formContents += "point " +(i + 1)+ ": X:<input type='text' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "X' >   Y:<input type='text' value ='" +shapes[s][i][1]+ "' value ='" +shapes[s][i][0]+ "' id='Shape" + s + "Point" +i+ "Y'><br/>";
+					}
+				}
+				
+				formContents += "<input type='button' value='update points' onclick='test()'>";
+			
+				document.getElementById('pointEditing').innerHTML = formContents;
+			}*/
+			
+			function test() {
+				for(var s = 0; s < shapes.length; s++) {
+					for(var i = 0; i < shapes.length; i++) {
+						shapes[s][i][0] = document.getElementById("Shape" + s + "Point" +i+ "X").value;
+						shapes[s][i][1] = document.getElementById("Shape" + s + "Point" +i+ "Y").value;
+					}
+				}
+			}
+			
+			
+			//converts a polygon's array of points into a formated array for testing
+			function makeString(polygon) {
+				var returnString = "[";
+				for(var i = 0; i < polygon.length; i++) {
+					returnString += "[";
+					for(var n = 0; n < polygon[i].length; n++) {
+						if(n > 0) {
+							returnString += ", ";
+						}
+						returnString += polygon[i][n];
+					}
+					returnString += "],";
+				}
+				returnString += "]";
+				
+				return returnString;
+			}
+			
+			function roundSpecific(numb, decimals) {
+			
+			//console
+				
+				return Math.round(numb*10000)/10000;
+			
+				//return numb;
+				//var a =(parseFloat(numb.toPrecision(5)));
+				//return (parseFloat(a.toPrecision(12)));
+				//return +(Math.round(numb + "e+"+decimals) + "e-"+decimals);
+				//return numb.toFixed(5);
+			}
+			
+			function init()
+			{
+				canvas.focus();
+				canvas.addEventListener("mousemove", onmousemove);
+				canvas.addEventListener("mouseup", onmouseup);
+				canvas.addEventListener("mousedown", onmousedown);
+				canvas.addEventListener("click", onclick, false);
+				//canvas.addEventListener("keydown", function(event) {alert("asdas");}, false);
+			
+				//calls the draw function after every so many milliseconds
+				return setInterval(draw, 500);
+			}
+	
+			//starting everything
+			init();
+		</script>
+		<script src="userInterface.js" type="text/javascript"></script>
+	</body>
+</html>

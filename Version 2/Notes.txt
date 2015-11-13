@@ -1,0 +1,62 @@
+Notes and Readme:
+
+---Making curves in GCODE With G02 and G03:----
+firstly, use G02 and G03 (opposed to G01 for linear interpolation) to start of a curve command. 
+G02 is for a clockwise manuver, G03 is for a counter clockwise manuver. To create a curve,
+it is actually simpler than it seems. Example:
+
+G03 x2.0 y2.0 R1.5 F5
+
+This command will have the machine move the bit from where ever the bit currently is set to, to 
+the position of (2.0, 2.0) with a radius of 1.5. If you were to remove the R1.5 and replace the
+G03 with a G01, then you are left with a standard linear cut from one point to another. Using
+the G02 Command will do the same thing, except in a clockwise arc. Doing this  can (usually) result
+in a dramiatically different cut
+
+Here is an example of using this in an actual example that is useful: 
+(this is assuming that the X direction goes horizontally with positive on the right and
+the Y direction goes vertically with positive in the upwards direction
+
+G00 x0.0 y0.0  		(Move to point 0,0)
+G01 Z-0.1 	   		(Plunge down)
+G01 x1.0 y0.0  		(Moves in a straight line, over 1 inch)
+G02 X2.0 y-1.0 R1.0 (Cuts an arc with a total angle of 90 degrees from 1.0,0.0 to 2.0,-1.0)
+
+Since the point x1.0 y0.0 and x2.0 y-1.0 are both 1.0 away from the same point (center of circle)
+this arc cut will work out. Note that we use G02 to cut a clockwise arc, since the second point is "below"
+of the starting point. 
+
+Note, Although I have not tested this yet, I am pretty sure that if you were to either make the radius very
+small or have the second point be very far away, the cut would not work.
+
+----Making more advanced curves in GCode with G02 and G03----
+One of the downsides of using G02 and G03 with only the radius as an aditional paramter is that you are fairly limited on
+what kind of cuts you can make with the machine. One example of this is that it is impossible to make a full circle while 
+just using the radius parameter because there are an infinite number of circles that passes through the same point.
+
+The fix here is to instead of using Just the R paramter, we use the set of parameters I, J, and K.
+I defines the arc center on the X-axis, J defines the arc center on the Y axis, and K defines the arc center on the Z axis.
+So to make a similear arc as above, but with only using J and I, we would do the following: 
+
+G00 x0.0 y0.0  		(Move to point 0,0)
+G01 Z-0.1 	   		(Plunge down)
+G01 x1.0 y0.0  		(Moves in a straight line, over 1 inch, ending at 1.0,0.0)
+G02 X2.0 y-1.0 I0 J-1 (Cuts an arc with a total angle of 90 degrees from 1.0,0.0 to 2.0,-1.0 with a radius of 1.0)
+
+
+
+----Restructuring some of the code!----
+
+I need to restructure the code for storing all of the points, the code for handling units and scaling, and
+the code for userinterface/handing clicks and point manipulation. All of this can likely be tackled with one
+"thing" if you will, E.G. a new class for storing all of the points. The drawing methods will likely have to be 
+redone, but not that much, At the very least, some naming will change and lots of comments will be added. I also
+need to add a documentation that contains the location and a description of all the methods and variables used.
+
+---------------------------------------
+
+
+
+----Ideas for features:----
+-Add an option to "round corners" just ever so slightly, that way the machine will not have to make abbrupt stops 
+ to change directions.
